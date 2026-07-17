@@ -1,14 +1,10 @@
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import Chat from '../models/Chat.js';
 import Message from '../models/Message.js';
 import InterviewSession from '../models/InterviewSession.js';
+import { ai } from '../lib/gemini.js';
 
 dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
-});
 
 // Helper mock questions for different roles
 const getMockQuestions = (role) => {
@@ -78,7 +74,7 @@ export const startInterview = async (req, res) => {
 
     let questions = [];
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       questions = getMockQuestions(role);
     } else {
       try {
@@ -91,17 +87,27 @@ You MUST respond in valid JSON format matching this exact structure:
 }
 Only output the JSON object.`;
 
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          response_format: { type: "json_object" },
-          messages: [{ role: 'system', content: systemPrompt }],
-          temperature: 0.8,
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: `Role: ${role}`,
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                questions: { type: "ARRAY", items: { type: "STRING" } }
+              },
+              required: ["questions"]
+            },
+            temperature: 0.8,
+          }
         });
 
-        const parsed = JSON.parse(completion.choices[0].message.content);
+        const parsed = JSON.parse(response.text);
         questions = parsed.questions || getMockQuestions(role);
       } catch (err) {
-        console.warn('OpenAI failed to generate interview questions, using mock questions:', err.message);
+        console.warn('Gemini failed to generate interview questions, using mock questions:', err.message);
         questions = getMockQuestions(role);
       }
     }
@@ -164,25 +170,25 @@ export const submitAnswer = async (req, res) => {
 
     let individualFeedback = "Answer recorded.";
 
-    if (process.env.OPENAI_API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       try {
         const systemPrompt = `You are a critical Technical Interviewer.
 Review the question and the user's answer. Provide a short critique (2-3 sentences) pointing out if it's correct, partially correct, or missing key details. Be constructive.`;
         
         const prompt = `Question: ${currentQ}\nUser's Answer: ${answer}`;
 
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.6,
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: prompt,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.6,
+          }
         });
 
-        individualFeedback = completion.choices[0].message.content;
+        individualFeedback = response.text;
       } catch (err) {
-        console.warn('OpenAI answer critique failed:', err.message);
+        console.warn('Gemini answer critique failed:', err.message);
       }
     }
 
@@ -222,7 +228,7 @@ Review the question and the user's answer. Provide a short critique (2-3 sentenc
         finalThoughts: "Solid performance. Study optimization and deployment configurations."
       };
 
-      if (process.env.OPENAI_API_KEY) {
+      if (process.env.GEMINI_API_KEY) {
         try {
           const transcript = session.questions.map((q, idx) => `Q: ${q}\nA: ${session.answers[idx]}`).join('\n\n');
           const systemPrompt = `You are an expert Senior Developer conducting an interview review.
@@ -237,19 +243,29 @@ You MUST respond in valid JSON format matching this structure:
 }
 Only output the JSON object.`;
 
-          const evaluation = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            response_format: { type: "json_object" },
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: transcript }
-            ],
-            temperature: 0.7,
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: transcript,
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  overallScore: { type: "INTEGER" },
+                  strengths: { type: "ARRAY", items: { type: "STRING" } },
+                  areasForImprovement: { type: "ARRAY", items: { type: "STRING" } },
+                  finalThoughts: { type: "STRING" }
+                },
+                required: ["overallScore", "strengths", "areasForImprovement", "finalThoughts"]
+              },
+              temperature: 0.7,
+            }
           });
 
-          overallReport = JSON.parse(evaluation.choices[0].message.content);
+          overallReport = JSON.parse(response.text);
         } catch (err) {
-          console.warn('OpenAI final evaluation failed:', err.message);
+          console.warn('Gemini final evaluation failed:', err.message);
         }
       }
 

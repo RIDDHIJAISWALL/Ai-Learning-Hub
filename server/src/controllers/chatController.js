@@ -1,9 +1,8 @@
-import OpenAI from 'openai';
-import { OpenAIEmbeddings } from '@langchain/openai';
 import Chat from '../models/Chat.js';
 import Message from '../models/Message.js';
 import NoteEmbedding from '../models/NoteEmbedding.js';
 import dotenv from 'dotenv';
+import { ai } from '../lib/gemini.js';
 
 dotenv.config();
 
@@ -38,10 +37,6 @@ const getSystemPrompt = (assistantType) => {
       return "You are a helpful AI assistant.";
   }
 };
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
-});
 
 // @desc    Create a new chat
 // @route   POST /api/chats
@@ -104,7 +99,7 @@ export const getMessages = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { content } = req.body;
-    
+
     if (!content) {
       return res.status(400).json({ message: 'Message content is required' });
     }
@@ -130,40 +125,45 @@ export const sendMessage = async (req, res) => {
     let contextDocs = '';
     if (chat.assistantType === 'NotesExplainer') {
       try {
-        if (process.env.OPENAI_API_KEY) {
-          const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
-          const queryVector = await embeddings.embedQuery(content);
-          
-          try {
-            const results = await NoteEmbedding.aggregate([
-              {
-                $vectorSearch: {
-                  index: 'vector_index',
-                  path: 'embedding',
-                  queryVector: queryVector,
-                  numCandidates: 100,
-                  limit: 5,
-                }
-              },
-              { $match: { userId: chat.userId } },
-              { $project: { textChunk: 1 } }
-            ]);
-            if (results && results.length > 0) {
-              contextDocs = "Context from uploaded notes:\n" + results.map(r => r.textChunk).join('\n\n');
-            } else {
-              throw new Error("No Atlas Vector results found");
-            }
-          } catch (err) {
-            // Local/In-memory vector search fallback
-            const noteEmbeds = await NoteEmbedding.find({ userId: chat.userId });
-            if (noteEmbeds && noteEmbeds.length > 0) {
-              const scored = noteEmbeds.map(doc => ({
-                textChunk: doc.textChunk,
-                similarity: cosineSimilarity(queryVector, doc.embedding)
-              }));
-              scored.sort((a, b) => b.similarity - a.similarity);
-              const top5 = scored.slice(0, 5);
-              contextDocs = "Context from uploaded notes:\n" + top5.map(r => r.textChunk).join('\n\n');
+        if (process.env.GEMINI_API_KEY) {
+          const response = await ai.models.embedContent({
+            model: 'text-embedding-004',
+            contents: content,
+          });
+          const queryVector = response.embeddings?.[0]?.values;
+
+          if (queryVector) {
+            try {
+              const results = await NoteEmbedding.aggregate([
+                {
+                  $vectorSearch: {
+                    index: 'vector_index',
+                    path: 'embedding',
+                    queryVector: queryVector,
+                    numCandidates: 100,
+                    limit: 5,
+                  }
+                },
+                { $match: { userId: chat.userId } },
+                { $project: { textChunk: 1 } }
+              ]);
+              if (results && results.length > 0) {
+                contextDocs = "Context from uploaded notes:\n" + results.map(r => r.textChunk).join('\n\n');
+              } else {
+                throw new Error("No Atlas Vector results found");
+              }
+            } catch (err) {
+              // Local/In-memory vector search fallback
+              const noteEmbeds = await NoteEmbedding.find({ userId: chat.userId });
+              if (noteEmbeds && noteEmbeds.length > 0) {
+                const scored = noteEmbeds.map(doc => ({
+                  textChunk: doc.textChunk,
+                  similarity: cosineSimilarity(queryVector, doc.embedding)
+                }));
+                scored.sort((a, b) => b.similarity - a.similarity);
+                const top5 = scored.slice(0, 5);
+                contextDocs = "Context from uploaded notes:\n" + top5.map(r => r.textChunk).join('\n\n');
+              }
             }
           }
         }
@@ -182,21 +182,14 @@ export const sendMessage = async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'user_message', message: userMessage })}\n\n`);
 
     const systemPromptContent = getSystemPrompt(chat.assistantType) + (contextDocs ? `\n\n${contextDocs}` : '');
-    const formattedMessages = [
-      { role: 'system', content: systemPromptContent },
-      ...previousMessages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-    ];
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       // Mock stream
-      const mockText = `[Mock Mode] This is a simulated response from the AI ${chat.assistantType} agent. To get real AI answers, configure your OPENAI_API_KEY in the backend .env file. You asked: "${content}"`;
-      
+      const mockText = `[Mock Mode] This is a simulated response from the AI ${chat.assistantType} agent. To get real AI answers, configure your GEMINI_API_KEY in the backend .env file. You asked: "${content}"`;
+
       const words = mockText.split(' ');
       let index = 0;
-      
+
       const interval = setInterval(async () => {
         if (index < words.length) {
           const chunk = words[index] + ' ';
@@ -223,17 +216,24 @@ export const sendMessage = async (req, res) => {
       return;
     }
 
-    // Call OpenAI with stream: true
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: formattedMessages,
-      temperature: 0.7,
-      stream: true,
+    const contents = previousMessages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Call Gemini generateContentStream
+    const responseStream = await ai.models.generateContentStream({
+      model: "gemini-flash-latest",
+      contents,
+      config: {
+        systemInstruction: systemPromptContent,
+        temperature: 0.7,
+      }
     });
 
     let fullResponse = '';
-    for await (const chunk of completion) {
-      const token = chunk.choices[0]?.delta?.content || '';
+    for await (const chunk of responseStream) {
+      const token = chunk.text || '';
       if (token) {
         fullResponse += token;
         res.write(`data: ${JSON.stringify({ token })}\n\n`);
@@ -255,8 +255,24 @@ export const sendMessage = async (req, res) => {
     res.end();
 
   } catch (error) {
-    console.error('Error in sendMessage:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Server error when contacting AI' })}\n\n`);
+    console.error("Gemini Error:", error);
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: "error",
+        message: error.message,
+      })}\n\n`
+
+
+    )
     res.end();
   }
 };
+
+
+//   } catch (error) {
+//     console.error('Error in sendMessage:', error);
+//     res.write(`data: ${JSON.stringify({ type: 'error', message: 'Server error when contacting AI' })}\n\n`);
+//     res.end();
+//   }
+// };

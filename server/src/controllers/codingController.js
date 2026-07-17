@@ -1,11 +1,7 @@
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { ai } from '../lib/gemini.js';
 
 dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
-});
 
 // @desc    Analyze code for bugs, complexity, and improvements
 // @route   POST /api/coding/review
@@ -18,8 +14,8 @@ export const reviewCode = async (req, res) => {
       return res.status(400).json({ message: 'code and language are required' });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      // Mock code analysis when OpenAI API is not available
+    if (!process.env.GEMINI_API_KEY) {
+      // Mock code analysis when Gemini API is not available
       return res.status(200).json({
         review: {
           bugs: [
@@ -52,17 +48,28 @@ Only output the JSON object. Do not wrap in markdown blocks.`;
 
     const userPrompt = `Problem Description (Optional): ${problemDescription || 'Not provided'}\nCode to Review:\n\`\`\`${language}\n${code}\n\`\`\``;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      response_format: { type: "json_object" },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.5,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            bugs: { type: 'ARRAY', items: { type: 'STRING' } },
+            improvements: { type: 'ARRAY', items: { type: 'STRING' } },
+            timeComplexity: { type: 'STRING' },
+            spaceComplexity: { type: 'STRING' },
+            correctedCode: { type: 'STRING' }
+          },
+          required: ['bugs', 'improvements', 'timeComplexity', 'spaceComplexity', 'correctedCode']
+        },
+        temperature: 0.5,
+      }
     });
 
-    const aiContent = completion.choices[0].message.content;
+    const aiContent = response.text;
     const review = JSON.parse(aiContent);
 
     res.status(200).json({ review });
@@ -83,8 +90,8 @@ export const generatePracticeQuestion = async (req, res) => {
     const selectedLanguage = language || 'JavaScript';
     const selectedDifficulty = difficulty || 'Medium';
 
-    if (!process.env.OPENAI_API_KEY) {
-      // Mock coding question when OpenAI API is not available
+    if (!process.env.GEMINI_API_KEY) {
+      // Mock coding question when Gemini API is not available
       return res.status(200).json({
         question: {
           title: "Reverse a Linked List",
@@ -115,16 +122,28 @@ You MUST respond in valid JSON format matching this exact structure:
 }
 Only output the JSON object. Do not wrap in markdown blocks.`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      response_format: { type: "json_object" },
-      messages: [
-        { role: 'system', content: systemPrompt }
-      ],
-      temperature: 0.8,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: systemPrompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING' },
+            description: { type: 'STRING' },
+            difficulty: { type: 'STRING' },
+            constraints: { type: 'ARRAY', items: { type: 'STRING' } },
+            starterCode: { type: 'STRING' },
+            hints: { type: 'ARRAY', items: { type: 'STRING' } }
+          },
+          required: ['title', 'description', 'difficulty', 'constraints', 'starterCode', 'hints']
+        },
+        temperature: 0.8,
+      }
     });
 
-    const aiContent = completion.choices[0].message.content;
+    const aiContent = response.text;
     const question = JSON.parse(aiContent);
 
     res.status(200).json({ question });
