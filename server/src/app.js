@@ -8,6 +8,7 @@ import chatRoutes from "./routes/chatRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import examCoachRoutes from "./routes/examCoachRoutes.js";
 import interviewRoutes from "./routes/interviewRoutes.js";
+import codingRoutes from "./routes/codingRoutes.js";
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/exam-coach", examCoachRoutes);
 app.use("/api/interview", interviewRoutes);
+app.use("/api/coding", codingRoutes);
 
 // Health Check
 app.get("/api/health", (req, res) => {

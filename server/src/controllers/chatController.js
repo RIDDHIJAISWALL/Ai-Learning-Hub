@@ -7,6 +7,20 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Helper to calculate Cosine Similarity between vectors in memory
+const cosineSimilarity = (vecA, vecB) => {
+  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  return normA && normB ? dotProduct / (Math.sqrt(normA) * Math.sqrt(normB)) : 0;
+};
+
 // Define system prompts for different assistants
 const getSystemPrompt = (assistantType) => {
   switch (assistantType) {
@@ -84,7 +98,7 @@ export const getMessages = async (req, res) => {
   }
 };
 
-// @desc    Send message and get AI response
+// @desc    Send message and get AI response with SSE streaming
 // @route   POST /api/chats/:id/messages
 // @access  Private
 export const sendMessage = async (req, res) => {
@@ -107,50 +121,66 @@ export const sendMessage = async (req, res) => {
       content,
     });
 
-    // Fetch previous messages for context (limit to last 10 for token optimization)
+    // Fetch previous messages for context
     const previousMessages = await Message.find({ chatId: chat._id })
       .sort({ createdAt: 1 })
       .limit(10);
 
     // Formulate Context for NotesExplainer using RAG
     let contextDocs = '';
-    if (chat.assistantType === 'NotesExplainer' && process.env.OPENAI_API_KEY) {
-      const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash" });
-      const queryVector = await embeddings.embedQuery(content);
-
-      // We use standard $near or $vectorSearch (Atlas)
-      // Since this is a generic implementation, we use $vectorSearch syntax assuming Atlas setup
+    if (chat.assistantType === 'NotesExplainer') {
       try {
-        const results = await NoteEmbedding.aggregate([
-          {
-            $vectorSearch: {
-              index: 'vector_index',
-              path: 'embedding',
-              queryVector: queryVector,
-              numCandidates: 100,
-              limit: 5,
+        if (process.env.OPENAI_API_KEY) {
+          const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+          const queryVector = await embeddings.embedQuery(content);
+          
+          try {
+            const results = await NoteEmbedding.aggregate([
+              {
+                $vectorSearch: {
+                  index: 'vector_index',
+                  path: 'embedding',
+                  queryVector: queryVector,
+                  numCandidates: 100,
+                  limit: 5,
+                }
+              },
+              { $match: { userId: chat.userId } },
+              { $project: { textChunk: 1 } }
+            ]);
+            if (results && results.length > 0) {
+              contextDocs = "Context from uploaded notes:\n" + results.map(r => r.textChunk).join('\n\n');
+            } else {
+              throw new Error("No Atlas Vector results found");
             }
-          },
-          {
-            $match: { userId: chat.userId } // filter by user
-          },
-          {
-            $project: { textChunk: 1, score: { $meta: "vectorSearchScore" } }
+          } catch (err) {
+            // Local/In-memory vector search fallback
+            const noteEmbeds = await NoteEmbedding.find({ userId: chat.userId });
+            if (noteEmbeds && noteEmbeds.length > 0) {
+              const scored = noteEmbeds.map(doc => ({
+                textChunk: doc.textChunk,
+                similarity: cosineSimilarity(queryVector, doc.embedding)
+              }));
+              scored.sort((a, b) => b.similarity - a.similarity);
+              const top5 = scored.slice(0, 5);
+              contextDocs = "Context from uploaded notes:\n" + top5.map(r => r.textChunk).join('\n\n');
+            }
           }
-        ]);
-        
-        if (results && results.length > 0) {
-          contextDocs = "Context from uploaded notes:\n" + results.map(r => r.textChunk).join('\n\n');
-        } else {
-          contextDocs = "No relevant context found in uploaded notes.";
         }
       } catch (err) {
-        console.warn('Vector search failed, perhaps index is not set up:', err.message);
-        contextDocs = "Note: Vector search index is not fully configured, answering from general knowledge.";
+        console.warn('RAG retrieval failed:', err.message);
       }
     }
 
-    // Format for OpenAI API
+    // Headers for Server-Sent Events (SSE)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    // Send the user's message object first so client has it in UI
+    res.write(`data: ${JSON.stringify({ type: 'user_message', message: userMessage })}\n\n`);
+
     const systemPromptContent = getSystemPrompt(chat.assistantType) + (contextDocs ? `\n\n${contextDocs}` : '');
     const formattedMessages = [
       { role: 'system', content: systemPromptContent },
@@ -160,41 +190,73 @@ export const sendMessage = async (req, res) => {
       }))
     ];
 
-    // Check if we have an API key, if not return a mock response for now
     if (!process.env.OPENAI_API_KEY) {
-      const mockResponse = await Message.create({
-        chatId: chat._id,
-        role: 'assistant',
-        content: `[Mock Mode] OPENAI_API_KEY is not set. You said: "${content}". Please configure your API key to get real AI responses.`,
+      // Mock stream
+      const mockText = `[Mock Mode] This is a simulated response from the AI ${chat.assistantType} agent. To get real AI answers, configure your OPENAI_API_KEY in the backend .env file. You asked: "${content}"`;
+      
+      const words = mockText.split(' ');
+      let index = 0;
+      
+      const interval = setInterval(async () => {
+        if (index < words.length) {
+          const chunk = words[index] + ' ';
+          res.write(`data: ${JSON.stringify({ token: chunk })}\n\n`);
+          index++;
+        } else {
+          clearInterval(interval);
+          // Save mock message to DB
+          const assistantMessage = await Message.create({
+            chatId: chat._id,
+            role: 'assistant',
+            content: mockText,
+          });
+          chat.updatedAt = Date.now();
+          await chat.save();
+          res.write(`data: ${JSON.stringify({ type: 'done', message: assistantMessage })}\n\n`);
+          res.end();
+        }
+      }, 50);
+
+      req.on('close', () => {
+        clearInterval(interval);
       });
-      chat.updatedAt = Date.now();
-      await chat.save();
-      return res.status(200).json(mockResponse);
+      return;
     }
 
-    // Call OpenAI
+    // Call OpenAI with stream: true
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: formattedMessages,
       temperature: 0.7,
+      stream: true,
     });
 
-    const aiContent = completion.choices[0].message.content;
+    let fullResponse = '';
+    for await (const chunk of completion) {
+      const token = chunk.choices[0]?.delta?.content || '';
+      if (token) {
+        fullResponse += token;
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+    }
 
     // Save AI response to DB
     const assistantMessage = await Message.create({
       chatId: chat._id,
       role: 'assistant',
-      content: aiContent,
+      content: fullResponse,
     });
 
     // Update chat timestamp
     chat.updatedAt = Date.now();
     await chat.save();
 
-    res.status(200).json(assistantMessage);
+    res.write(`data: ${JSON.stringify({ type: 'done', message: assistantMessage })}\n\n`);
+    res.end();
+
   } catch (error) {
     console.error('Error in sendMessage:', error);
-    res.status(500).json({ message: 'Server error when contacting AI' });
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Server error when contacting AI' })}\n\n`);
+    res.end();
   }
 };
