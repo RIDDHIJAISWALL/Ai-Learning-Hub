@@ -2,7 +2,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { OpenAIEmbeddings } from '@langchain/openai';
+import { ai } from '../lib/gemini.js';
 import UploadedNote from '../models/UploadedNote.js';
 import NoteEmbedding from '../models/NoteEmbedding.js';
 
@@ -41,26 +41,22 @@ export const uploadDocument = async (req, res) => {
       fileSize,
     });
 
-    // If there is no OpenAI API key, we skip embedding creation to avoid crashing
-    if (!process.env.OPENAI_API_KEY) {
+    // If there is no Gemini API key, we skip embedding creation to avoid crashing
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(201).json({
-        message: 'File uploaded and text extracted. Embeddings skipped due to missing OPENAI_API_KEY.',
+        message: 'File uploaded and text extracted. Embeddings skipped due to missing GEMINI_API_KEY.',
         note,
       });
     }
 
     // 4. Generate embeddings and save to DB
-    const embeddings = new OpenAIEmbeddings({
-      openAIApiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
-      configuration: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" },
-      modelName: "gemini-embedding-2"
+    const response = await ai.models.embedContent({
+      model: 'text-embedding-004',
+      contents: chunks,
     });
 
-    // Process in batches if there are many chunks to prevent rate limiting
     const noteEmbeddings = [];
-    
-    // For simplicity, embed all at once (OpenAI handles up to 2048 arrays at once usually)
-    const vectors = await embeddings.embedDocuments(chunks);
+    const vectors = response.embeddings.map(emb => emb.values);
 
     for (let i = 0; i < chunks.length; i++) {
       noteEmbeddings.push({

@@ -1,13 +1,8 @@
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import StudyPlan from '../models/StudyPlan.js';
+import { ai } from '../lib/gemini.js';
 
 dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
-  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
-});
 
 // @desc    Generate and save study plan
 // @route   POST /api/exam-coach/plan
@@ -22,7 +17,7 @@ export const generateStudyPlan = async (req, res) => {
 
     let studyPlanData;
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       // Mock data when API Key is missing
       studyPlanData = {
         examName,
@@ -45,7 +40,7 @@ export const generateStudyPlan = async (req, res) => {
             ]
           }
         ],
-        tips: ["Set your OpenAI API key in .env to get customized study plans."]
+        tips: ["Set your GEMINI_API_KEY in .env to get customized study plans."]
       };
     } else {
       const systemPrompt = `You are an AI Exam Preparation Coach. The user is preparing for an exam.
@@ -61,23 +56,47 @@ Only output the JSON object, do not include any markdown styling or wrapper.`;
 
       const userPrompt = `Exam Name: ${examName}\nExam Date: ${examDate}\nCurrent Level: ${currentLevel || 'Beginner'}\nTopics: ${topics || 'General syllabus'}`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gemini-3.5-flash',
-        response_format: { type: "json_object" },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              weeklyGoals: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    week: { type: "INTEGER" },
+                    focus: { type: "STRING" },
+                    tasks: {
+                      type: "ARRAY",
+                      items: {
+                        type: "OBJECT",
+                        properties: {
+                          taskText: { type: "STRING" }
+                        },
+                        required: ["taskText"]
+                      }
+                    }
+                  },
+                  required: ["week", "focus", "tasks"]
+                }
+              },
+              tips: { type: "ARRAY", items: { type: "STRING" } }
+            },
+            required: ["weeklyGoals", "tips"]
+          },
+          temperature: 0.7,
+        }
       });
 
-      const aiContent = completion.choices[0].message.content;
-      let cleanContent = aiContent;
-      const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        cleanContent = jsonMatch[1];
-      }
-      const parsedPlan = JSON.parse(cleanContent);
+      const aiContent = response.text;
+      const parsedPlan = JSON.parse(aiContent);
+      
       studyPlanData = {
         examName,
         examDate: new Date(examDate),
