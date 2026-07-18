@@ -6,7 +6,7 @@ import app from "./app.js";
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://riddhi9892jaiswal_db_user:Riddhi%409892@ac-h65y6vi-shard-00-00.idxsneg.mongodb.net:27017,ac-h65y6vi-shard-00-01.idxsneg.mongodb.net:27017,ac-h65y6vi-shard-00-02.idxsneg.mongodb.net:27017/ai-learning-hub?ssl=true&replicaSet=atlas-zxmo15-shard-0&authSource=admin&retryWrites=true&w=majority";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://riddhi9892jaiswal_db_user:Riddhi%409892@learninghubcluster.idxsneg.mongodb.net/ai-learning-hub?appName=learninghubcluster";
 
 const startServer = async () => {
   try {

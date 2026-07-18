@@ -5,6 +5,7 @@ dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
 });
 
 // @desc    Analyze code for bugs, complexity, and improvements
@@ -21,19 +22,20 @@ export const reviewCode = async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       // Mock code analysis when OpenAI API is not available
       return res.status(200).json({
-        review: {
-          bugs: [
-            "Mock Bug: Ensure proper null/undefined checks are performed before accessing properties.",
-            "Mock Bug: Loop boundary might cause off-by-one under heavy constraints."
-          ],
-          improvements: [
-            "Use const/let instead of var for proper block scoping.",
-            "Consider using array helper methods like .map() or .filter() to improve readability."
-          ],
-          timeComplexity: "O(N)",
-          spaceComplexity: "O(1)",
-          correctedCode: `// Corrected ${language} code mock\n\nconsole.log("Mock code review");`
-        }
+        summary: "Mock analysis complete.",
+        issues: [
+          "Mock Bug: Ensure proper null/undefined checks are performed before accessing properties.",
+          "Mock Bug: Loop boundary might cause off-by-one under heavy constraints."
+        ],
+        suggestions: [
+          "Use const/let instead of var for proper block scoping.",
+          "Consider using array helper methods like .map() or .filter() to improve readability."
+        ],
+        complexity: {
+          time: "O(N)",
+          space: "O(1)"
+        },
+        improvedCode: `// Corrected ${language} code mock\n\nconsole.log("Mock code review");`
       });
     }
 
@@ -42,18 +44,21 @@ Analyze the provided code in the ${language} language.
 Analyze time/space complexity, find any bugs, and suggest code cleanliness and performance improvements.
 You MUST respond in valid JSON format matching this exact structure:
 {
-  "bugs": ["string"],
-  "improvements": ["string"],
-  "timeComplexity": "string",
-  "spaceComplexity": "string",
-  "correctedCode": "string"
+  "summary": "string",
+  "issues": ["string"],
+  "suggestions": ["string"],
+  "improvedCode": "string",
+  "complexity": {
+    "time": "string",
+    "space": "string"
+  }
 }
 Only output the JSON object. Do not wrap in markdown blocks.`;
 
     const userPrompt = `Problem Description (Optional): ${problemDescription || 'Not provided'}\nCode to Review:\n\`\`\`${language}\n${code}\n\`\`\``;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gemini-3.5-flash',
       response_format: { type: "json_object" },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -63,9 +68,14 @@ Only output the JSON object. Do not wrap in markdown blocks.`;
     });
 
     const aiContent = completion.choices[0].message.content;
-    const review = JSON.parse(aiContent);
+    let cleanContent = aiContent;
+    const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      cleanContent = jsonMatch[1];
+    }
+    const review = JSON.parse(cleanContent);
 
-    res.status(200).json({ review });
+    res.status(200).json(review);
   } catch (error) {
     console.error('Error in reviewCode:', error);
     res.status(500).json({ message: 'Server error during code analysis' });
@@ -86,20 +96,20 @@ export const generatePracticeQuestion = async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       // Mock coding question when OpenAI API is not available
       return res.status(200).json({
-        question: {
-          title: "Reverse a Linked List",
-          description: `Given the head of a singly linked list, reverse the list, and return the reversed list.`,
-          difficulty: selectedDifficulty,
-          constraints: [
-            "The number of nodes in the list is the range [0, 5000].",
-            "-5000 <= Node.val <= 5000"
-          ],
-          starterCode: `/**\n * Definition for singly-linked list.\n * function ListNode(val, next) {\n *     this.val = (val===undefined ? 0 : val)\n *     this.next = (next===undefined ? null : next)\n * }\n */\n/**\n * @param {ListNode} head\n * @return {ListNode}\n */\nvar reverseList = function(head) {\n    // Write your code here\n};`,
-          hints: [
-            "Can you solve it both iteratively and recursively?",
-            "For iterative, keep track of prev, curr, and next nodes."
-          ]
-        }
+        title: "Reverse a Linked List",
+        description: `Given the head of a singly linked list, reverse the list, and return the reversed list.`,
+        difficulty: selectedDifficulty,
+        examples: [
+          {
+            input: "head = [1,2,3,4,5]",
+            output: "[5,4,3,2,1]",
+            explanation: "The linked list is reversed."
+          }
+        ],
+        hints: [
+          "Can you solve it both iteratively and recursively?",
+          "For iterative, keep track of prev, curr, and next nodes."
+        ]
       });
     }
 
@@ -109,14 +119,19 @@ You MUST respond in valid JSON format matching this exact structure:
   "title": "string",
   "description": "string",
   "difficulty": "Easy" | "Medium" | "Hard",
-  "constraints": ["string"],
-  "starterCode": "string",
+  "examples": [
+    {
+      "input": "string",
+      "output": "string",
+      "explanation": "string"
+    }
+  ],
   "hints": ["string"]
 }
 Only output the JSON object. Do not wrap in markdown blocks.`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gemini-3.5-flash',
       response_format: { type: "json_object" },
       messages: [
         { role: 'system', content: systemPrompt }
@@ -125,9 +140,14 @@ Only output the JSON object. Do not wrap in markdown blocks.`;
     });
 
     const aiContent = completion.choices[0].message.content;
-    const question = JSON.parse(aiContent);
+    let cleanContent = aiContent;
+    const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      cleanContent = jsonMatch[1];
+    }
+    const question = JSON.parse(cleanContent);
 
-    res.status(200).json({ question });
+    res.status(200).json(question);
   } catch (error) {
     console.error('Error in generatePracticeQuestion:', error);
     res.status(500).json({ message: 'Server error when generating coding question' });

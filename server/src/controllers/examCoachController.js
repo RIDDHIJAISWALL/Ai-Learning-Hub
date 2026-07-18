@@ -6,6 +6,7 @@ dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
 });
 
 // @desc    Generate and save study plan
@@ -61,7 +62,7 @@ Only output the JSON object, do not include any markdown styling or wrapper.`;
       const userPrompt = `Exam Name: ${examName}\nExam Date: ${examDate}\nCurrent Level: ${currentLevel || 'Beginner'}\nTopics: ${topics || 'General syllabus'}`;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gemini-3.5-flash',
         response_format: { type: "json_object" },
         messages: [
           { role: 'system', content: systemPrompt },
@@ -71,8 +72,12 @@ Only output the JSON object, do not include any markdown styling or wrapper.`;
       });
 
       const aiContent = completion.choices[0].message.content;
-      const parsedPlan = JSON.parse(aiContent);
-      
+      let cleanContent = aiContent;
+      const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[1];
+      }
+      const parsedPlan = JSON.parse(cleanContent);
       studyPlanData = {
         examName,
         examDate: new Date(examDate),

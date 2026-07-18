@@ -51,7 +51,9 @@ export const uploadDocument = async (req, res) => {
 
     // 4. Generate embeddings and save to DB
     const embeddings = new OpenAIEmbeddings({
-      openAIApiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash"
+      openAIApiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
+      configuration: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" },
+      modelName: "gemini-embedding-2"
     });
 
     // Process in batches if there are many chunks to prevent rate limiting

@@ -41,6 +41,7 @@ const getSystemPrompt = (assistantType) => {
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
 });
 
 // @desc    Create a new chat
@@ -131,7 +132,11 @@ export const sendMessage = async (req, res) => {
     if (chat.assistantType === 'NotesExplainer') {
       try {
         if (process.env.OPENAI_API_KEY) {
-          const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+          const embeddings = new OpenAIEmbeddings({ 
+            openAIApiKey: process.env.OPENAI_API_KEY,
+            configuration: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" },
+            modelName: "gemini-embedding-2"
+          });
           const queryVector = await embeddings.embedQuery(content);
           
           try {
@@ -225,7 +230,7 @@ export const sendMessage = async (req, res) => {
 
     // Call OpenAI with stream: true
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gemini-3.5-flash',
       messages: formattedMessages,
       temperature: 0.7,
       stream: true,

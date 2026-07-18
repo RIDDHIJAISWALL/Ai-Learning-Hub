@@ -8,6 +8,7 @@ dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key_to_prevent_crash",
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
 });
 
 // Helper mock questions for different roles
@@ -92,7 +93,7 @@ You MUST respond in valid JSON format matching this exact structure:
 Only output the JSON object.`;
 
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gemini-3.5-flash',
           response_format: { type: "json_object" },
           messages: [{ role: 'system', content: systemPrompt }],
           temperature: 0.8,
@@ -172,7 +173,7 @@ Review the question and the user's answer. Provide a short critique (2-3 sentenc
         const prompt = `Question: ${currentQ}\nUser's Answer: ${answer}`;
 
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gemini-3.5-flash',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
@@ -238,7 +239,7 @@ You MUST respond in valid JSON format matching this structure:
 Only output the JSON object.`;
 
           const evaluation = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'gemini-3.5-flash',
             response_format: { type: "json_object" },
             messages: [
               { role: 'system', content: systemPrompt },
