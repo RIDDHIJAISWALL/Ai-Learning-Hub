@@ -88,7 +88,7 @@ You MUST respond in valid JSON format matching this exact structure:
 Only output the JSON object.`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: "gemini-flash-latest",
           contents: `Role: ${role}`,
           config: {
             systemInstruction: systemPrompt,
@@ -174,11 +174,11 @@ export const submitAnswer = async (req, res) => {
       try {
         const systemPrompt = `You are a critical Technical Interviewer.
 Review the question and the user's answer. Provide a short critique (2-3 sentences) pointing out if it's correct, partially correct, or missing key details. Be constructive.`;
-        
+
         const prompt = `Question: ${currentQ}\nUser's Answer: ${answer}`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-flash-latest',
           contents: prompt,
           config: {
             systemInstruction: systemPrompt,
@@ -200,7 +200,7 @@ Review the question and the user's answer. Provide a short critique (2-3 sentenc
     // Check if there are more questions
     if (session.currentQuestionIndex < session.questions.length) {
       const nextQ = session.questions[session.currentQuestionIndex];
-      
+
       // Save Next Question message in Chat
       const nextQMsg = `**Feedback on last answer:** ${individualFeedback}\n\n**Next Question:**\n${nextQ}`;
       await Message.create({
@@ -220,7 +220,7 @@ Review the question and the user's answer. Provide a short critique (2-3 sentenc
     } else {
       // Completed! Compute overall feedback
       session.status = 'completed';
-      
+
       let overallReport = {
         overallScore: 80,
         strengths: ["Clear communication", "Demonstrated basic knowledge"],
@@ -244,7 +244,7 @@ You MUST respond in valid JSON format matching this structure:
 Only output the JSON object.`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-flash-latest',
             contents: transcript,
             config: {
               systemInstruction: systemPrompt,
