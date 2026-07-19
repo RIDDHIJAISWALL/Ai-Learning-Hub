@@ -43,7 +43,7 @@ const getSystemPrompt = (assistantType) => {
 // @access  Private
 export const createChat = async (req, res) => {
   try {
-    const { assistantType, title } = req.body;
+    const { assistantType, title, noteId } = req.body;
 
     if (!assistantType) {
       return res.status(400).json({ message: 'assistantType is required' });
@@ -53,6 +53,7 @@ export const createChat = async (req, res) => {
       userId: req.user._id,
       assistantType,
       title: title || `New ${assistantType} Chat`,
+      ...(noteId && { noteId }),
     });
 
     res.status(201).json(chat);
@@ -127,7 +128,7 @@ export const sendMessage = async (req, res) => {
       try {
         if (process.env.GEMINI_API_KEY) {
           const response = await ai.models.embedContent({
-            model: 'text-embedding-004',
+            model: 'gemini-embedding-001',
             contents: content,
           });
           const queryVector = response.embeddings?.[0]?.values;
@@ -144,7 +145,7 @@ export const sendMessage = async (req, res) => {
                     limit: 5,
                   }
                 },
-                { $match: { userId: chat.userId } },
+                { $match: chat.noteId ? { userId: chat.userId, noteId: chat.noteId } : { userId: chat.userId } },
                 { $project: { textChunk: 1 } }
               ]);
               if (results && results.length > 0) {
@@ -154,7 +155,7 @@ export const sendMessage = async (req, res) => {
               }
             } catch (err) {
               // Local/In-memory vector search fallback
-              const noteEmbeds = await NoteEmbedding.find({ userId: chat.userId });
+              const noteEmbeds = await NoteEmbedding.find(chat.noteId ? { userId: chat.userId, noteId: chat.noteId } : { userId: chat.userId });
               if (noteEmbeds && noteEmbeds.length > 0) {
                 const scored = noteEmbeds.map(doc => ({
                   textChunk: doc.textChunk,

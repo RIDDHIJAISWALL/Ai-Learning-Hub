@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { protect } from '../middlewares/authMiddleware.js';
-import { uploadDocument, getDocuments } from '../controllers/documentController.js';
+import { uploadDocument, getDocuments, deleteDocument } from '../controllers/documentController.js';
 
 const router = express.Router();
 
@@ -26,5 +26,8 @@ router.route('/')
 
 router.route('/upload')
   .post(protect, upload.single('file'), uploadDocument);
+
+router.route('/:id')
+  .delete(protect, deleteDocument);
 
 export default router;

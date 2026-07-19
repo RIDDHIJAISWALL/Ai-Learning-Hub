@@ -1,3 +1,4 @@
+// Document controller with pdf-parse fix
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
@@ -5,6 +6,8 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { ai } from '../lib/gemini.js';
 import UploadedNote from '../models/UploadedNote.js';
 import NoteEmbedding from '../models/NoteEmbedding.js';
+import Chat from '../models/Chat.js';
+import Message from '../models/Message.js';
 
 // @desc    Upload PDF, extract text, chunk and embed
 // @route   POST /api/documents/upload
@@ -55,21 +58,27 @@ export const uploadDocument = async (req, res) => {
     }
 
     // 4. Generate embeddings and save to DB
-    const response = await ai.models.embedContent({
-      model: 'gemini-embedding-001',
-      contents: chunks,
-    });
-
     const noteEmbeddings = [];
-    const vectors = response.embeddings.map(emb => emb.values);
+    const batchSize = 90;
 
-    for (let i = 0; i < chunks.length; i++) {
-      noteEmbeddings.push({
-        noteId: note._id,
-        userId: req.user._id,
-        textChunk: chunks[i],
-        embedding: vectors[i],
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const chunkBatch = chunks.slice(i, i + batchSize);
+      
+      const response = await ai.models.embedContent({
+        model: 'gemini-embedding-001',
+        contents: chunkBatch,
       });
+
+      const vectors = response.embeddings.map(emb => emb.values);
+
+      for (let j = 0; j < chunkBatch.length; j++) {
+        noteEmbeddings.push({
+          noteId: note._id,
+          userId: req.user._id,
+          textChunk: chunkBatch[j],
+          embedding: vectors[j],
+        });
+      }
     }
 
     await NoteEmbedding.insertMany(noteEmbeddings);
@@ -81,7 +90,7 @@ export const uploadDocument = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in uploadDocument:', error);
-    res.status(500).json({ message: 'Server error during document processing' });
+    res.status(500).json({ message: `Server error: ${error.message || 'Unknown error'}` });
   }
 };
 
@@ -93,7 +102,38 @@ export const getDocuments = async (req, res) => {
     const documents = await UploadedNote.find({ userId: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(documents);
   } catch (error) {
-    console.error('Error in getDocuments:', error);
+    console.error('Error getting documents:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete a document, its embeddings, and associated chats
+// @route   DELETE /api/documents/:id
+// @access  Private
+export const deleteDocument = async (req, res) => {
+  try {
+    const documentId = req.params.id;
+
+    const document = await UploadedNote.findOne({ _id: documentId, userId: req.user._id });
+    if (!document) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Find and delete all associated chats and messages
+    const chats = await Chat.find({ noteId: documentId, userId: req.user._id });
+    const chatIds = chats.map(c => c._id);
+    await Message.deleteMany({ chatId: { $in: chatIds } });
+    await Chat.deleteMany({ noteId: documentId, userId: req.user._id });
+
+    // Delete embeddings
+    await NoteEmbedding.deleteMany({ noteId: documentId, userId: req.user._id });
+
+    // Delete the document itself
+    await UploadedNote.deleteOne({ _id: documentId });
+
+    res.status(200).json({ message: 'Document and associated data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting document:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

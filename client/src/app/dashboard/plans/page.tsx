@@ -40,6 +40,9 @@ export default function StudyPlansPage() {
   const [creating, setCreating] = useState(false);
   const [updatingTask, setUpdatingTask] = useState<string | null>(null);
   const [createError, setCreateError] = useState("");
+  const [addingTaskWeek, setAddingTaskWeek] = useState<number | null>(null);
+  const [newTaskText, setNewTaskText] = useState("");
+  const [savingTask, setSavingTask] = useState(false);
 
   const [form, setForm] = useState({
     examName: "",
@@ -108,6 +111,29 @@ export default function StudyPlansPage() {
       console.error("Failed to update task", err);
     } finally {
       setUpdatingTask(null);
+    }
+  };
+
+  const handleAddCustomTask = async (weekIdx: number) => {
+    if (!selectedPlan || !newTaskText.trim()) return;
+    setSavingTask(true);
+    try {
+      const updatedGoals = selectedPlan.weeklyGoals.map((week, wi) =>
+        wi === weekIdx
+          ? { ...week, tasks: [...week.tasks, { taskText: newTaskText.trim(), isCompleted: false }] }
+          : week
+      );
+      const { data } = await api.patch(`/exam-coach/plans/${selectedPlan._id}`, {
+        weeklyGoals: updatedGoals
+      });
+      setSelectedPlan(data);
+      setPlans(prev => prev.map(p => p._id === data._id ? data : p));
+      setNewTaskText("");
+      setAddingTaskWeek(null);
+    } catch (err) {
+      console.error("Failed to add task", err);
+    } finally {
+      setSavingTask(false);
     }
   };
 
@@ -253,6 +279,45 @@ export default function StudyPlansPage() {
                             </span>
                           </button>
                         ))}
+
+                        {/* Add custom task */}
+                        {addingTaskWeek === wi ? (
+                          <div className="flex items-center gap-2 mt-1 pt-2 border-t border-slate-200/40 dark:border-slate-700/40">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={newTaskText}
+                              onChange={e => setNewTaskText(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") handleAddCustomTask(wi);
+                                if (e.key === "Escape") { setAddingTaskWeek(null); setNewTaskText(""); }
+                              }}
+                              placeholder="Type a task and press Enter..."
+                              className="flex-1 px-3 py-1.5 bg-slate-900/60 border border-amber-500/40 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                            <button
+                              onClick={() => handleAddCustomTask(wi)}
+                              disabled={savingTask || !newTaskText.trim()}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold rounded-lg text-xs transition-all flex items-center gap-1"
+                            >
+                              {savingTask ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+                            </button>
+                            <button
+                              onClick={() => { setAddingTaskWeek(null); setNewTaskText(""); }}
+                              className="p-1.5 hover:bg-slate-800/50 rounded-lg text-slate-400"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setAddingTaskWeek(wi); setNewTaskText(""); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-amber-400 hover:bg-amber-500/5 border border-dashed border-slate-300/40 dark:border-slate-700/40 hover:border-amber-500/30 transition-all mt-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add custom task
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

@@ -1,0 +1,34 @@
+services:
+  # Backend - Express.js API
+  - type: web
+    name: ai-learning-hub-backend
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false   # Set this in Render dashboard
+      - key: JWT_SECRET
+        sync: false   # Set this in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false   # Set this in Render dashboard
+      - key: CLIENT_URL
+        sync: false   # Set to your frontend Render URL after deploy
+
+  # Frontend - Next.js
+  - type: web
+    name: ai-learning-hub-frontend
+    runtime: node
+    rootDir: client
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false   # Set to your backend Render URL after deploy

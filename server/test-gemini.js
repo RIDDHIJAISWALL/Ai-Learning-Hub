@@ -8,11 +8,12 @@ const ai = new GoogleGenAI({
 });
 
 try {
-    const models = await ai.models.list();
-
-    for await (const model of models) {
-        console.log(model.name);
-    }
+    const chunks = ["This is a test message to query"];
+    const response = await ai.models.embedContent({
+        model: 'text-embedding-004',
+        contents: chunks,
+    });
+    console.log("Embeddings length:", response.embeddings?.length);
 } catch (e) {
-    console.error(e);
+    console.error(e.message);
 }

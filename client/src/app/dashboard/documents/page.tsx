@@ -72,6 +72,9 @@ export default function DocumentsPage() {
       const data = await response.json();
       setUploadStatus({ type: "success", msg: `"${file.name}" uploaded and indexed successfully!` });
       fetchDocuments();
+      if (data.note && data.note._id) {
+        startNotesChat(data.note._id);
+      }
     } catch (err: any) {
       setUploadStatus({ type: "error", msg: err.message || "Failed to upload file." });
     } finally {
@@ -92,15 +95,27 @@ export default function DocumentsPage() {
     if (file) handleFileUpload(file);
   };
 
-  const startNotesChat = async () => {
+  const startNotesChat = async (noteId?: string) => {
     try {
       const { data } = await api.post("/chats", {
         assistantType: "NotesExplainer",
-        title: "Notes Explainer Session"
+        title: "Notes Explainer Session",
+        ...(noteId && { noteId })
       });
       router.push(`/dashboard/chat/${data._id}`);
     } catch (err) {
       console.error("Failed to start notes chat", err);
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this document? All associated chats will also be deleted.")) return;
+    try {
+      await api.delete(`/documents/${id}`);
+      setDocuments(docs => docs.filter(doc => doc._id !== id));
+    } catch (err) {
+      console.error("Failed to delete document", err);
+      alert("Failed to delete document");
     }
   };
 
@@ -185,7 +200,7 @@ export default function DocumentsPage() {
             </div>
           </div>
           <button
-            onClick={startNotesChat}
+            onClick={() => startNotesChat()}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-sm transition-all shrink-0"
           >
             Start Chat <ArrowRight className="w-4 h-4" />
@@ -235,10 +250,24 @@ export default function DocumentsPage() {
                     {formatBytes(doc.fileSize)} · Uploaded {new Date(doc.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg font-semibold border border-emerald-500/20">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg font-semibold border border-emerald-500/20">
                     <CheckCircle2 className="w-3 h-3" /> Indexed
                   </span>
+                  <button 
+                    onClick={() => startNotesChat(doc._id)}
+                    className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-lg transition-colors"
+                    title="Chat with this document"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteDocument(doc._id)}
+                    className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
+                    title="Delete document"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}

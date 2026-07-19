@@ -16,6 +16,11 @@ const chatSchema = new mongoose.Schema(
       type: String,
       default: 'New Chat',
     },
+    noteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'UploadedNote',
+      required: false,
+    },
   },
   { timestamps: true }
 );
