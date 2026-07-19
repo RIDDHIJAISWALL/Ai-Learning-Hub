@@ -110,7 +110,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="w-full max-w-7xl px-6 py-8 border-t border-slate-900 text-center text-slate-500 text-xs z-10">
-        © {new Date().getFullYear()} AI Learning Hub. Created for NamasteDev × OpenAI Codex Hackathon. All rights reserved.
+        © {new Date().getFullYear()} AI Learning Hub. All rights reserved.
       </footer>
     </div>
   );
