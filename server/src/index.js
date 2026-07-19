@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import app from "./app.js";
 
 dotenv.config();
+console.log("MONGO_URI:", process.env.MONGO_URI);
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://riddhi9892jaiswal_db_user:Riddhi%409892@learninghubcluster.idxsneg.mongodb.net/ai-learning-hub?appName=learninghubcluster";
