@@ -226,73 +226,11 @@ export default function CodingTutorPage() {
 
             {result && (
               <div className="space-y-5 text-sm">
-                
-                {/* Code Review result */}
-                {result.summary && (
-                  <div>
-                    <h3 className="font-bold text-emerald-400 mb-2 flex items-center gap-1.5"><Zap className="w-4 h-4" /> Summary</h3>
-                    <p className="text-slate-400 leading-relaxed">{result.summary}</p>
-                  </div>
-                )}
-                {result.issues && result.issues.length > 0 && (
-                  <div>
-                    <h3 className="font-bold text-red-400 mb-2 flex items-center gap-1.5"><Bug className="w-4 h-4" /> Issues Found</h3>
-                    <ul className="space-y-1.5">
-                      {result.issues.map((issue: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-slate-400">
-                          <span className="text-red-400 shrink-0 mt-0.5">•</span>{issue}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.suggestions && result.suggestions.length > 0 && (
-                  <div>
-                    <h3 className="font-bold text-amber-400 mb-2 flex items-center gap-1.5"><Lightbulb className="w-4 h-4" /> Suggestions</h3>
-                    <ul className="space-y-1.5">
-                      {result.suggestions.map((s: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-slate-400">
-                          <span className="text-amber-400 shrink-0 mt-0.5">→</span>{s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.improvedCode && (
-                  <div>
-                    <h3 className="font-bold text-violet-400 mb-2">Improved Code</h3>
-                    <pre className="bg-[#0d1117] border border-slate-700 rounded-xl p-4 overflow-x-auto text-emerald-400 font-mono text-xs leading-relaxed">
-                      {result.improvedCode}
-                    </pre>
-                  </div>
-                )}
-                {result.complexity && (
-                  <div className="flex flex-wrap gap-3">
-                    {result.complexity.time && (
-                      <div className="glass-card border border-slate-700 rounded-lg px-3 py-2">
-                        <p className="text-[11px] text-slate-500 mb-0.5">Time Complexity</p>
-                        <p className="font-mono font-bold text-violet-400 text-sm">{result.complexity.time}</p>
-                      </div>
-                    )}
-                    {result.complexity.space && (
-                      <div className="glass-card border border-slate-700 rounded-lg px-3 py-2">
-                        <p className="text-[11px] text-slate-500 mb-0.5">Space Complexity</p>
-                        <p className="font-mono font-bold text-blue-400 text-sm">{result.complexity.space}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Debug / Explain / Optimize (generic response fields) */}
-                {result.explanation && (
-                  <div>
-                    <h3 className="font-bold text-blue-400 mb-2 flex items-center gap-1.5"><HelpCircle className="w-4 h-4" /> Explanation</h3>
-                    <p className="text-slate-400 leading-relaxed">{result.explanation}</p>
-                  </div>
-                )}
+                {/* ── Code Review ── bugs + improvements + complexity + correctedCode */}
                 {result.bugs && result.bugs.length > 0 && (
                   <div>
-                    <h3 className="font-bold text-red-400 mb-2">Bugs Found</h3>
+                    <h3 className="font-bold text-red-400 mb-2 flex items-center gap-1.5"><Bug className="w-4 h-4" /> Bugs Found</h3>
                     <ul className="space-y-1.5">
                       {result.bugs.map((b: string, i: number) => (
                         <li key={i} className="flex items-start gap-2 text-slate-400">
@@ -302,20 +240,86 @@ export default function CodingTutorPage() {
                     </ul>
                   </div>
                 )}
+                {result.improvements && result.improvements.length > 0 && (
+                  <div>
+                    <h3 className="font-bold text-amber-400 mb-2 flex items-center gap-1.5"><Lightbulb className="w-4 h-4" /> Improvements</h3>
+                    <ul className="space-y-1.5">
+                      {result.improvements.map((s: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-slate-400">
+                          <span className="text-amber-400 shrink-0 mt-0.5">→</span>{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(result.timeComplexity || result.spaceComplexity) && (
+                  <div className="flex flex-wrap gap-3">
+                    {result.timeComplexity && (
+                      <div className="glass-card border border-slate-700 rounded-lg px-3 py-2">
+                        <p className="text-[11px] text-slate-500 mb-0.5">Time Complexity</p>
+                        <p className="font-mono font-bold text-violet-400 text-sm">{result.timeComplexity}</p>
+                      </div>
+                    )}
+                    {result.spaceComplexity && (
+                      <div className="glass-card border border-slate-700 rounded-lg px-3 py-2">
+                        <p className="text-[11px] text-slate-500 mb-0.5">Space Complexity</p>
+                        <p className="font-mono font-bold text-blue-400 text-sm">{result.spaceComplexity}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {result.correctedCode && (
+                  <div>
+                    <h3 className="font-bold text-emerald-400 mb-2 flex items-center gap-1.5"><Zap className="w-4 h-4" /> Corrected Code</h3>
+                    <pre className="bg-[#0d1117] border border-slate-700 rounded-xl p-4 overflow-x-auto text-emerald-400 font-mono text-xs leading-relaxed">
+                      {result.correctedCode}
+                    </pre>
+                  </div>
+                )}
+
+                {/* ── Debug Help ── bugs + fixedCode + explanation */}
                 {result.fixedCode && (
                   <div>
-                    <h3 className="font-bold text-emerald-400 mb-2">Fixed Code</h3>
+                    <h3 className="font-bold text-emerald-400 mb-2 flex items-center gap-1.5"><Bug className="w-4 h-4" /> Fixed Code</h3>
                     <pre className="bg-[#0d1117] border border-slate-700 rounded-xl p-4 overflow-x-auto text-emerald-400 font-mono text-xs leading-relaxed">
                       {result.fixedCode}
                     </pre>
                   </div>
                 )}
 
-                {/* Practice Problem */}
-                {result.title && (
+                {/* ── Explain Code ── explanation + keyPoints */}
+                {result.explanation && (
                   <div>
-                    <h3 className="font-bold text-emerald-400 mb-2 text-base">{result.title}</h3>
+                    <h3 className="font-bold text-blue-400 mb-2 flex items-center gap-1.5"><HelpCircle className="w-4 h-4" /> Explanation</h3>
+                    <p className="text-slate-400 leading-relaxed whitespace-pre-wrap">{result.explanation}</p>
                   </div>
+                )}
+                {result.keyPoints && result.keyPoints.length > 0 && (
+                  <div>
+                    <h3 className="font-bold text-violet-400 mb-2 flex items-center gap-1.5"><Zap className="w-4 h-4" /> Key Points</h3>
+                    <ul className="space-y-1.5">
+                      {result.keyPoints.map((k: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-slate-400">
+                          <span className="text-violet-400 shrink-0 mt-0.5">▸</span>{k}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* ── Optimize ── improvements + improvedCode + complexity */}
+                {result.improvedCode && (
+                  <div>
+                    <h3 className="font-bold text-violet-400 mb-2 flex items-center gap-1.5"><Lightbulb className="w-4 h-4" /> Optimized Code</h3>
+                    <pre className="bg-[#0d1117] border border-slate-700 rounded-xl p-4 overflow-x-auto text-emerald-400 font-mono text-xs leading-relaxed">
+                      {result.improvedCode}
+                    </pre>
+                  </div>
+                )}
+
+                {/* ── Practice Problem ── title + difficulty + description + constraints + starterCode + hints */}
+                {result.title && (
+                  <h3 className="font-bold text-emerald-400 text-base">{result.title}</h3>
                 )}
                 {result.difficulty && (
                   <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -327,18 +331,24 @@ export default function CodingTutorPage() {
                 {result.description && (
                   <p className="text-slate-400 leading-relaxed">{result.description}</p>
                 )}
-                {result.examples && result.examples.length > 0 && (
+                {result.constraints && result.constraints.length > 0 && (
                   <div>
-                    <h4 className="font-bold text-slate-300 mb-2">Examples</h4>
-                    <div className="space-y-2">
-                      {result.examples.map((ex: any, i: number) => (
-                        <div key={i} className="bg-[#0d1117] border border-slate-700 rounded-xl px-4 py-3 font-mono text-xs text-emerald-400">
-                          <p>Input: {ex.input}</p>
-                          <p>Output: {ex.output}</p>
-                          {ex.explanation && <p className="text-slate-500 mt-1">// {ex.explanation}</p>}
-                        </div>
+                    <h4 className="font-bold text-slate-300 mb-2">Constraints</h4>
+                    <ul className="space-y-1">
+                      {result.constraints.map((c: string, i: number) => (
+                        <li key={i} className="text-slate-400 font-mono text-xs flex items-start gap-2">
+                          <span className="text-slate-500 shrink-0">•</span>{c}
+                        </li>
                       ))}
-                    </div>
+                    </ul>
+                  </div>
+                )}
+                {result.starterCode && (
+                  <div>
+                    <h4 className="font-bold text-slate-300 mb-2">Starter Code</h4>
+                    <pre className="bg-[#0d1117] border border-slate-700 rounded-xl p-4 overflow-x-auto text-emerald-400 font-mono text-xs leading-relaxed">
+                      {result.starterCode}
+                    </pre>
                   </div>
                 )}
                 {result.hints && result.hints.length > 0 && (

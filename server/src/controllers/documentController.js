@@ -20,7 +20,12 @@ export const uploadDocument = async (req, res) => {
     const fileSize = req.file.size;
 
     // 1. Extract text using pdf-parse
+
     const pdfData = await pdfParse(fileBuffer);
+    console.log("PDF Data:", pdfData);
+    console.log("Extracted Text Length:", pdfData.text?.length);
+    console.log("Extracted Text Preview:", pdfData.text?.substring(0, 300));
+
     const text = pdfData.text;
 
     if (!text || text.trim() === '') {
@@ -51,7 +56,7 @@ export const uploadDocument = async (req, res) => {
 
     // 4. Generate embeddings and save to DB
     const response = await ai.models.embedContent({
-      model: 'text-embedding-004',
+      model: 'gemini-embedding-001',
       contents: chunks,
     });
 

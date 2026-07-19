@@ -57,7 +57,7 @@ Only output the JSON object, do not include any markdown styling or wrapper.`;
       const userPrompt = `Exam Name: ${examName}\nExam Date: ${examDate}\nCurrent Level: ${currentLevel || 'Beginner'}\nTopics: ${topics || 'General syllabus'}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-flash-latest',
         contents: userPrompt,
         config: {
           systemInstruction: systemPrompt,
@@ -96,7 +96,7 @@ Only output the JSON object, do not include any markdown styling or wrapper.`;
 
       const aiContent = response.text;
       const parsedPlan = JSON.parse(aiContent);
-      
+
       studyPlanData = {
         examName,
         examDate: new Date(examDate),
