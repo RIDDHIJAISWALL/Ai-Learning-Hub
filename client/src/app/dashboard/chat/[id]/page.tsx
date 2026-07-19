@@ -185,7 +185,25 @@ export default function ChatPage() {
                 setMessages(prev => [...prev, data.message as Message]);
                 setStreamingText("");
               } else if (data.type === "error") {
-                console.error("Stream error:", data.message);
+                console.warn("Stream error (Rate limit / API error):", data.message);
+                
+                // Show error cleanly in chat instead of getting stuck
+                const errorMsg = data.message.includes("429") || data.message.includes("Quota exceeded") 
+                  ? "⚠️ Gemini API Rate Limit Exceeded: You've sent too many requests on the free tier. Please wait 10-15 seconds and try again."
+                  : `⚠️ Error generating response: ${data.message}`;
+
+                setStreamingText("");
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    _id: "error-" + Date.now(),
+                    chatId: chatId,
+                    role: "assistant",
+                    content: errorMsg,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  }
+                ]);
               }
             } catch (e) {
               // Skip malformed JSON lines
